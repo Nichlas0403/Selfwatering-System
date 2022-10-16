@@ -16,8 +16,8 @@ int lastWatering = 4222; //the amount of time passed since last watering
 
 
 
-const char* _wifiName = "a";
-const char* _wifiPassword = "a";
+const char* _wifiName = "FTTH_WL1722";
+const char* _wifiPassword = "meawhivRyar9";
 ESP8266WebServer server(80);
  
 // Serving Hello world
@@ -189,14 +189,24 @@ void connectToWiFi()
 
 // -----------------------------------------------
 
+#define pin D2
+
 void setup(void) 
 {
   Serial.begin(9600);
-  connectToWiFi();
+  pinMode(pin, OUTPUT);
+  digitalWrite(pin, HIGH);
+  // connectToWiFi();
 }
  
 void loop(void) {
-  server.handleClient();
+  // server.handleClient();
+
+  // digitalWrite(pin, HIGH);
+  // delay(500);
+  // digitalWrite(pin, HIGH);
+  // delay(500);
+
 }
 
 
