@@ -5,7 +5,9 @@
 class SoilSensorService
 {
     public:
-        int GetSensorReading(int gpio);
+        double GetSensorReading(int gpio);
+        void ActivateSoilSensor(int gpio);
+        void DisableSoilSensor(int gpio);
 };
 
 #endif

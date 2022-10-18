@@ -1,8 +1,17 @@
 #include "SoilSensorService.h"
 #include "Arduino.h"
 
-int SoilSensorService::GetSensorReading(int gpio)
+double SoilSensorService::GetSensorReading(int gpio)
 {
-    return 42;
-    //return analogRead(gpio);
+    return analogRead(gpio);
+}
+
+void SoilSensorService::ActivateSoilSensor(int gpio)
+{
+    digitalWrite(gpio, HIGH);
+}
+
+void SoilSensorService::DisableSoilSensor(int gpio)
+{
+    digitalWrite(gpio, LOW);
 }

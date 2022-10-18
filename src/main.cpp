@@ -9,8 +9,9 @@
 #include <ArduinoJson.h>
  
  //GPIO
+#define soilSensorReadGPIO A0
+#define soilSensorActivateGPIO D5
 #define waterPumpGPIO D7
-#define soilSensorGPIO D8
 
 
 //Server function definitions
@@ -29,12 +30,14 @@ ESP8266WebServer server(80);
 
 //Core system variables
 long currentTime = millis(); //Current time
-int moistureThreshold = 32; //Threshold for when the watering should happen
-int currentMoistureLevel = 999; //Current moisture level in the soil
-int wateringTimeSeconds = 2; //amount of the water is sent from the pump to the plant
-int lastWateringHours = 4222; //the amount of time passed since last watering
-byte soilReadingFrequencyMinutes = 60;
-long lastSoilReading = 0;
+int minDrynessAllowed = 600; //Threshold for when the watering should happen
+int wateringTimeSeconds = 5; //amount of the water is sent from the pump to the plant
+int lastWateringHours = 0; //the amount of time passed since last watering
+byte soilReadingFrequencyMinutes = 60; //How often a soilreading should happen
+long lastSoilReading = 0; //holds last millis() a reading was done
+int numberOfSoilReadings = 1000; //number of soilreading done - avg is calculated
+double averageSoilReading = 0; //calculated soilreading
+bool soilSensorOnline = false;
 
 //Custom classes
 WaterPumpService waterPumpService;
@@ -45,26 +48,41 @@ MathService mathService;
 void setup(void) 
 {
   Serial.begin(9600);
+  // connectToWiFi();
   pinMode(waterPumpGPIO, OUTPUT);
-  pinMode(soilSensorGPIO, INPUT);
-  connectToWiFi();
+  pinMode(soilSensorReadGPIO, INPUT);
+  pinMode(soilSensorActivateGPIO, OUTPUT);
 }
  
 void loop(void) 
 {
-  currentTime = millis();
   server.handleClient();
 
-  if(!currentTime - lastSoilReading >= mathService.ConvertMinutesToMillis(soilReadingFrequencyMinutes))
+  currentTime = millis();
+
+  if(currentTime - lastSoilReading < mathService.ConvertMinutesToMillis(soilReadingFrequencyMinutes))
   {
     return;
   }
   
   lastSoilReading = currentTime;
 
-  currentMoistureLevel = soilSensorService.GetSensorReading(soilSensorGPIO);
+  averageSoilReading = 0;
 
-  if(!currentMoistureLevel <= moistureThreshold)
+  soilSensorService.ActivateSoilSensor(soilSensorActivateGPIO);
+  soilSensorOnline = true;
+
+  for(int i = 0; i < numberOfSoilReadings; i++)
+  {
+    averageSoilReading = averageSoilReading + soilSensorService.GetSensorReading(soilSensorReadGPIO);
+  }
+
+  soilSensorService.DisableSoilSensor(soilSensorActivateGPIO);
+  soilSensorOnline = false;
+
+  averageSoilReading = averageSoilReading / numberOfSoilReadings;
+
+  if(averageSoilReading >= minDrynessAllowed && !soilSensorOnline)
   {
     return;
   }
@@ -73,9 +91,10 @@ void loop(void)
 
   long waterPumpTime = millis();
 
-  while(!currentTime - waterPumpTime > mathService.ConvertSecondsToMillis(wateringTimeSeconds))
+  while(waterPumpTime - currentTime < mathService.ConvertSecondsToMillis(wateringTimeSeconds))
   {
-    waterPumpTime = millis();  
+    waterPumpTime = millis();
+    delay(15); 
   }
 
   waterPumpService.StopWaterPump(waterPumpGPIO);
@@ -95,8 +114,8 @@ void loop(void)
 void getSystemValues() 
 {
     DynamicJsonDocument doc(1024);
-    doc["moistureThreshold"] = moistureThreshold;
-    doc["currentMoistureLevel"] = currentMoistureLevel;
+    doc["minDrynessAllowed"] = minDrynessAllowed;
+    doc["averageSoilReading"] = averageSoilReading;
     doc["wateringTimeSeconds"] = wateringTimeSeconds;
     doc["lastWateringInHours"] = String((currentTime - lastWateringHours) * 2.7777777777778E-7);
 
@@ -125,15 +144,15 @@ void setWateringTimeSeconds()
   int oldwateringTimeSeconds = wateringTimeSeconds;
   wateringTimeSeconds = receivedwateringTimeSeconds;
 
-  server.send(200, "text(json", "MoistureThreshold changed from " + String(oldwateringTimeSeconds) + " to " + String(wateringTimeSeconds));
+  server.send(200, "text(json", "wateringTimeSeconds changed from " + String(oldwateringTimeSeconds) + " to " + String(wateringTimeSeconds));
 
 }
 
  
-void setMoistureThreshold()
+void setMinDrynessAllowed()
 {
 
-  String arg = "moistureThreshold";
+  String arg = "minDrynessAllowed";
 
   if(!server.hasArg(arg))
   {
@@ -141,18 +160,18 @@ void setMoistureThreshold()
     return;
   }
 
-  int receivedMoistureThreshold = server.arg(arg).toInt();
+  int receivedMinDrynessAllowed = server.arg(arg).toInt();
 
-  if(receivedMoistureThreshold == 0)
+  if(receivedMinDrynessAllowed == 0)
   {
     server.send(400, "text/json", "Value could not be converted to an integer");
     return;
   }
 
-  int oldMoistureThreshold = moistureThreshold;
-  moistureThreshold = receivedMoistureThreshold;
+  int oldMinDrynessAllowed = minDrynessAllowed;
+  minDrynessAllowed = receivedMinDrynessAllowed;
 
-  server.send(200, "text(json", "MoistureThreshold changed from " + String(oldMoistureThreshold) + " to " + String(moistureThreshold));
+  server.send(200, "text(json", "Minimum dryness allowed changed from " + String(oldMinDrynessAllowed) + " to " + String(minDrynessAllowed));
 
 }
 
@@ -173,7 +192,7 @@ void restServerRouting()
     server.on(F("/health-check"), HTTP_GET, healthCheck);
     server.on(F("/get-watering-system-values"), HTTP_GET, getSystemValues); 
     server.on(F("/set-watering-time-seconds"), HTTP_PUT, setWateringTimeSeconds);
-    server.on(F("/set-moisture-threshold"), HTTP_PUT, setMoistureThreshold);
+    server.on(F("/set-minimum-dryness-allowed"), HTTP_PUT, setMoistureThreshold);
 }
 
 // Manage not found URL

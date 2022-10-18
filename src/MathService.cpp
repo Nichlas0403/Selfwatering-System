@@ -3,15 +3,15 @@
 
 long MathService::ConvertMinutesToMillis(byte minutes)
 {
-    return minutes / 60.000;
+    return 60000 / minutes;
 }
 
 long MathService::ConvertSecondsToMillis(int seconds)
 {
-    return seconds / 1000;
+    return 1000 * seconds;
 }
 
-int MathService::ConvertMillisToHours(long millis)
+double MathService::ConvertMillisToHours(long millis)
 {
-    return millis * E-7
+    return millis * 2.7777777777778E-7;
 }
