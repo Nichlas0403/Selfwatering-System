@@ -5,9 +5,11 @@
 class MathService
 {
     public:
-        long ConvertMinutesToMillis(byte minutes);
-        long ConvertSecondsToMillis(int seconds);
-        double ConvertMillisToHours(long millis);
+        unsigned long ConvertMinutesToMillis(byte minutes);
+        unsigned long ConvertSecondsToMillis(int seconds);
+        double ConvertMillisToHours(unsigned long millis);
+        double ConvertMillisToDays(unsigned long millis);
+        double ConvertMillisToMinutes(unsigned long millis);
 };
 
 #endif

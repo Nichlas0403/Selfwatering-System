@@ -17,11 +17,17 @@
 //Server function definitions
 void getSystemValues();
 void setWateringTimeSeconds();
-void setMoistureThreshold();
+void setMinDrynessAllowed();
+void daysBeforeNextReset();
 void healthCheck();
 void restServerRouting();
 void handleNotFound();
 void connectToWiFi();
+void requestWatering();
+void RunWateringCycle();
+void setSoilReadingFrequencyMinutes();
+void setSoilReadingFrequencyMinutes();
+void getCurrentSoilReading();
 
 //Wifi variables and objects
 const char* _wifiName = "FTTH_WL1722";
@@ -29,15 +35,18 @@ const char* _wifiPassword = "meawhivRyar9";
 ESP8266WebServer server(80);
 
 //Core system variables
-long currentTime = millis(); //Current time
-int minDrynessAllowed = 600; //Threshold for when the watering should happen
+unsigned long currentTimeMillis = millis(); //Current time
+int minDrynessAllowed = 400; //Threshold for when the watering should happen
 int wateringTimeSeconds = 5; //amount of the water is sent from the pump to the plant
-int lastWateringHours = 0; //the amount of time passed since last watering
+int lastWateringMillis = 0; //the amount of time passed since last watering
 byte soilReadingFrequencyMinutes = 60; //How often a soilreading should happen
-long lastSoilReading = 0; //holds last millis() a reading was done
+unsigned long lastSoilReadingMillis = 0; //holds last millis() a reading was done
 int numberOfSoilReadings = 1000; //number of soilreading done - avg is calculated
 double averageSoilReading = 0; //calculated soilreading
 bool soilSensorOnline = false;
+bool waterPumpOnline = false;
+byte daysLeftBeforeReset = 1; //Reset system when currentTime is 1 day from reaching max value of unsigned long
+bool wateringAutomationEnabled = true;
 
 //Custom classes
 WaterPumpService waterPumpService;
@@ -48,7 +57,7 @@ MathService mathService;
 void setup(void) 
 {
   Serial.begin(9600);
-  // connectToWiFi();
+  connectToWiFi();
   pinMode(waterPumpGPIO, OUTPUT);
   pinMode(soilSensorReadGPIO, INPUT);
   pinMode(soilSensorActivateGPIO, OUTPUT);
@@ -56,16 +65,29 @@ void setup(void)
  
 void loop(void) 
 {
+  
   server.handleClient();
 
-  currentTime = millis();
+  currentTimeMillis = millis();
 
-  if(currentTime - lastSoilReading < mathService.ConvertMinutesToMillis(soilReadingFrequencyMinutes))
+  if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
+  {
+    currentTimeMillis = 0;
+    lastSoilReadingMillis = 0;
+    lastWateringMillis = 0;
+  }
+
+  if(!wateringAutomationEnabled)
+  {
+    return;
+  }
+
+  if((currentTimeMillis - lastSoilReadingMillis < mathService.ConvertMinutesToMillis(soilReadingFrequencyMinutes)) || soilSensorOnline)
   {
     return;
   }
   
-  lastSoilReading = currentTime;
+  lastSoilReadingMillis = currentTimeMillis;
 
   averageSoilReading = 0;
 
@@ -82,28 +104,40 @@ void loop(void)
 
   averageSoilReading = averageSoilReading / numberOfSoilReadings;
 
-  if(averageSoilReading >= minDrynessAllowed && !soilSensorOnline)
+  if(averageSoilReading <= minDrynessAllowed && !soilSensorOnline)
   {
     return;
   }
+
+  RunWateringCycle();
+    
+}
+
+void RunWateringCycle()
+{
+  if(waterPumpOnline)
+  {
+    return;
+  }
+
+  waterPumpOnline = true;
 
   waterPumpService.StartWaterPump(waterPumpGPIO);
 
   long waterPumpTime = millis();
 
-  while(waterPumpTime - currentTime < mathService.ConvertSecondsToMillis(wateringTimeSeconds))
+  while(waterPumpTime - currentTimeMillis < mathService.ConvertSecondsToMillis(wateringTimeSeconds))
   {
     waterPumpTime = millis();
-    delay(15); 
+    delay(15); //Avoid watchdog in ESP8266 12E
   }
 
   waterPumpService.StopWaterPump(waterPumpGPIO);
 
-  lastWateringHours = mathService.ConvertMillisToHours(millis());
-    
+  waterPumpOnline = false;
+
+  lastWateringMillis = millis();
 }
-
-
 
 
  
@@ -114,10 +148,13 @@ void loop(void)
 void getSystemValues() 
 {
     DynamicJsonDocument doc(1024);
-    doc["minDrynessAllowed"] = minDrynessAllowed;
-    doc["averageSoilReading"] = averageSoilReading;
-    doc["wateringTimeSeconds"] = wateringTimeSeconds;
-    doc["lastWateringInHours"] = String((currentTime - lastWateringHours) * 2.7777777777778E-7);
+    doc["MinDrynessAllowedBeforeWatering"] = minDrynessAllowed;
+    doc["LastSoilReadingAverageValue"] = averageSoilReading;
+    doc["WateringTimeSeconds"] = wateringTimeSeconds;
+    doc["MinutesBetweenSoilReadings"] = soilReadingFrequencyMinutes;
+    doc["MinutesAgoSinceLastSoilReading"] = String(mathService.ConvertMillisToMinutes(currentTimeMillis - lastSoilReadingMillis));
+    doc["HoursAgoLastWateringCycleWasDone"] = String(mathService.ConvertMillisToHours(currentTimeMillis - lastWateringMillis));
+    doc["WateringAutomationEnabled"] = wateringAutomationEnabled;
 
     server.send(200, "text/json", doc.as<String>());
 }
@@ -141,10 +178,16 @@ void setWateringTimeSeconds()
     return;
   }
 
+  if(receivedwateringTimeSeconds > 10)
+  {
+    server.send(400, "text/json", "Value cannot be larger than 10");
+    return;
+  }
+
   int oldwateringTimeSeconds = wateringTimeSeconds;
   wateringTimeSeconds = receivedwateringTimeSeconds;
 
-  server.send(200, "text(json", "wateringTimeSeconds changed from " + String(oldwateringTimeSeconds) + " to " + String(wateringTimeSeconds));
+  server.send(200, "text/json", "wateringTimeSeconds changed from " + String(oldwateringTimeSeconds) + " to " + String(wateringTimeSeconds));
 
 }
 
@@ -168,31 +211,139 @@ void setMinDrynessAllowed()
     return;
   }
 
+  if(receivedMinDrynessAllowed > 410)
+  {
+    server.send(400, "text/json", "Max dryness allowed is 410. When measuring completely dry soil the value was 435 - 438");
+    return;
+  }
+
+  if(receivedMinDrynessAllowed < 350)
+  {
+    server.send(400, "text/json", "Min dryness allowed is 350. When measuring newly watered soil the value was 285 - 287");
+    return;
+  }
+
   int oldMinDrynessAllowed = minDrynessAllowed;
   minDrynessAllowed = receivedMinDrynessAllowed;
 
-  server.send(200, "text(json", "Minimum dryness allowed changed from " + String(oldMinDrynessAllowed) + " to " + String(minDrynessAllowed));
+  server.send(200, "text/json", "Minimum dryness allowed changed from " + String(oldMinDrynessAllowed) + " to " + String(minDrynessAllowed));
 
+}
+
+void setSoilReadingFrequencyMinutes()
+{
+
+  String arg = "soilReadingFrequencyMinutes";
+
+  if(!server.hasArg(arg))
+  {
+    server.send(400, "text/json", "Missing argument: " + arg);
+    return;
+  }
+
+  int receivedSoilReadingFrequencyMinutes = server.arg(arg).toInt();
+
+  if(receivedSoilReadingFrequencyMinutes == 0)
+  {
+    server.send(400, "text/json", "Value could not be converted to an integer");
+    return;
+  }
+
+  if(receivedSoilReadingFrequencyMinutes > 120)
+  {
+    server.send(400, "text/json", "Value cannot be larger than 120");
+    return;
+  }
+
+  int oldSoilReadingFrequencyMinutes = soilReadingFrequencyMinutes;
+  soilReadingFrequencyMinutes = receivedSoilReadingFrequencyMinutes;
+
+  server.send(200, "text/json", "Soil reading frequency changed from " + String(oldSoilReadingFrequencyMinutes) + " to " + String(soilReadingFrequencyMinutes));
+
+}
+
+
+void toggleWateringAutomationEnabled()
+{
+
+  if(wateringAutomationEnabled)
+  {
+    wateringAutomationEnabled = false;
+    server.send(200, "text/json", "Watering system DISABLED");
+  }
+  else
+  {
+    wateringAutomationEnabled = true;
+    server.send(200, "text/json", "Watering system ENABLED");
+  }
+
+  
+
+}
+
+void daysBeforeNextReset()
+{
+
+  double daysLeft = mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) - daysLeftBeforeReset;
+
+  server.send(200, "text/json", "System will reset in: " + String(daysLeft));
+
+}
+
+void requestWatering()
+{
+  RunWateringCycle();
+
+  lastSoilReadingMillis = millis(); //Allow water to settle before next reading is done
+
+  server.send(200, "text/json", "Watering cycle completed");
+
+}
+
+void getCurrentSoilReading()
+{
+
+  if(soilSensorOnline)
+  {
+    server.send(200, "text/json", "Soilsensor is currently busy measuring");
+    return;
+  }
+
+  double soilReading = 0;
+
+  soilSensorService.ActivateSoilSensor(soilSensorActivateGPIO);
+  soilSensorOnline = true;
+
+  for(int i = 0; i < numberOfSoilReadings; i++)
+  {
+    soilReading = soilReading + soilSensorService.GetSensorReading(soilSensorReadGPIO);
+  }
+
+  soilSensorService.DisableSoilSensor(soilSensorActivateGPIO);
+  soilSensorOnline = false;
+
+  soilReading = soilReading / numberOfSoilReadings;
+
+  server.send(200, "text/json", "Soilreading: " + String(soilReading));
 }
 
 void healthCheck()
 {
-  server.send(200, "json/text");
+  server.send(200, "text/json");
 }
 
 // Define routing
 void restServerRouting() 
 {
-    server.on("/", HTTP_GET, []() 
-    {
-        server.send(200, F("text/html"),
-            F("Welcome to the REST Web Server"));
-    });
-
+    server.on(F("/run-watering-cycle"), HTTP_POST, requestWatering);
     server.on(F("/health-check"), HTTP_GET, healthCheck);
     server.on(F("/get-watering-system-values"), HTTP_GET, getSystemValues); 
+    server.on(F("/get-days-before-system-reset"), HTTP_GET, daysBeforeNextReset);
+    server.on(F("/get-current-soil-reading"), HTTP_GET, getCurrentSoilReading);
     server.on(F("/set-watering-time-seconds"), HTTP_PUT, setWateringTimeSeconds);
-    server.on(F("/set-minimum-dryness-allowed"), HTTP_PUT, setMoistureThreshold);
+    server.on(F("/set-minimum-dryness-allowed"), HTTP_PUT, setMinDrynessAllowed);
+    server.on(F("/set-soil-reading-frequency"), HTTP_PUT, setSoilReadingFrequencyMinutes);
+    server.on(F("/toggle-watering-automation"), HTTP_PUT, toggleWateringAutomationEnabled);
 }
 
 // Manage not found URL
