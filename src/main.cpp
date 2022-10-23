@@ -36,15 +36,13 @@ ESP8266WebServer server(80);
 
 //Core system variables
 unsigned long currentTimeMillis = millis(); //Current time
-int minDrynessAllowed = 400; //Threshold for when the watering should happen
+int drynessAllowed = 400; //Threshold for when the watering should happen
 int wateringTimeSeconds = 5; //amount of the water is sent from the pump to the plant
 int lastWateringMillis = 0; //the amount of time passed since last watering
 byte soilReadingFrequencyMinutes = 60; //How often a soilreading should happen
 unsigned long lastSoilReadingMillis = 0; //holds last millis() a reading was done
 int numberOfSoilReadings = 1000; //number of soilreading done - avg is calculated
 double averageSoilReading = 0; //calculated soilreading
-bool soilSensorOnline = false;
-bool waterPumpOnline = false;
 byte daysLeftBeforeReset = 1; //Reset system when currentTime is 1 day from reaching max value of unsigned long
 bool wateringAutomationEnabled = true;
 
@@ -70,19 +68,19 @@ void loop(void)
 
   currentTimeMillis = millis();
 
-  if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
-  {
-    currentTimeMillis = 0;
-    lastSoilReadingMillis = 0;
-    lastWateringMillis = 0;
-  }
+  // if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
+  // {
+  //   currentTimeMillis = 0;
+  //   lastSoilReadingMillis = 0;
+  //   lastWateringMillis = 0;
+  // }
 
-  if(!wateringAutomationEnabled)
-  {
-    return;
-  }
+  // if(!wateringAutomationEnabled)
+  // {
+  //   return;
+  // }
 
-  if((currentTimeMillis - lastSoilReadingMillis < mathService.ConvertMinutesToMillis(soilReadingFrequencyMinutes)) || soilSensorOnline)
+  if((currentTimeMillis - lastSoilReadingMillis < mathService.ConvertMinutesToMillis(soilReadingFrequencyMinutes)))
   {
     return;
   }
@@ -92,7 +90,6 @@ void loop(void)
   averageSoilReading = 0;
 
   soilSensorService.ActivateSoilSensor(soilSensorActivateGPIO);
-  soilSensorOnline = true;
 
   for(int i = 0; i < numberOfSoilReadings; i++)
   {
@@ -100,11 +97,10 @@ void loop(void)
   }
 
   soilSensorService.DisableSoilSensor(soilSensorActivateGPIO);
-  soilSensorOnline = false;
 
   averageSoilReading = averageSoilReading / numberOfSoilReadings;
 
-  if(averageSoilReading <= minDrynessAllowed && !soilSensorOnline)
+  if(averageSoilReading <= drynessAllowed)
   {
     return;
   }
@@ -115,12 +111,6 @@ void loop(void)
 
 void RunWateringCycle()
 {
-  if(waterPumpOnline)
-  {
-    return;
-  }
-
-  waterPumpOnline = true;
 
   waterPumpService.StartWaterPump(waterPumpGPIO);
 
@@ -134,8 +124,6 @@ void RunWateringCycle()
 
   waterPumpService.StopWaterPump(waterPumpGPIO);
 
-  waterPumpOnline = false;
-
   lastWateringMillis = millis();
 }
 
@@ -148,7 +136,7 @@ void RunWateringCycle()
 void getSystemValues() 
 {
     DynamicJsonDocument doc(1024);
-    doc["MinDrynessAllowedBeforeWatering"] = minDrynessAllowed;
+    doc["DrynessAllowedBeforeWatering"] = drynessAllowed;
     doc["LastSoilReadingAverageValue"] = averageSoilReading;
     doc["WateringTimeSeconds"] = wateringTimeSeconds;
     doc["MinutesBetweenSoilReadings"] = soilReadingFrequencyMinutes;
@@ -223,10 +211,10 @@ void setMinDrynessAllowed()
     return;
   }
 
-  int oldMinDrynessAllowed = minDrynessAllowed;
-  minDrynessAllowed = receivedMinDrynessAllowed;
+  int oldMinDrynessAllowed = drynessAllowed;
+  drynessAllowed = receivedMinDrynessAllowed;
 
-  server.send(200, "text/json", "Minimum dryness allowed changed from " + String(oldMinDrynessAllowed) + " to " + String(minDrynessAllowed));
+  server.send(200, "text/json", "Minimum dryness allowed changed from " + String(oldMinDrynessAllowed) + " to " + String(drynessAllowed));
 
 }
 
@@ -302,17 +290,9 @@ void requestWatering()
 
 void getCurrentSoilReading()
 {
-
-  if(soilSensorOnline)
-  {
-    server.send(200, "text/json", "Soilsensor is currently busy measuring");
-    return;
-  }
-
   double soilReading = 0;
 
   soilSensorService.ActivateSoilSensor(soilSensorActivateGPIO);
-  soilSensorOnline = true;
 
   for(int i = 0; i < numberOfSoilReadings; i++)
   {
@@ -320,7 +300,6 @@ void getCurrentSoilReading()
   }
 
   soilSensorService.DisableSoilSensor(soilSensorActivateGPIO);
-  soilSensorOnline = false;
 
   soilReading = soilReading / numberOfSoilReadings;
 
