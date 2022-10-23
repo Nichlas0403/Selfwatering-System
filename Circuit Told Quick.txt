@@ -1,0 +1,4 @@
+Microcontroller: ESP8266 12-E
+
+D5 --> SoilSensor
+D7 --> WaterPump

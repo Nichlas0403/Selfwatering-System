@@ -68,17 +68,17 @@ void loop(void)
 
   currentTimeMillis = millis();
 
-  // if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
-  // {
-  //   currentTimeMillis = 0;
-  //   lastSoilReadingMillis = 0;
-  //   lastWateringMillis = 0;
-  // }
+  if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
+  {
+    currentTimeMillis = 0;
+    lastSoilReadingMillis = 0;
+    lastWateringMillis = 0;
+  }
 
-  // if(!wateringAutomationEnabled)
-  // {
-  //   return;
-  // }
+  if(!wateringAutomationEnabled)
+  {
+    return;
+  }
 
   if((currentTimeMillis - lastSoilReadingMillis < mathService.ConvertMinutesToMillis(soilReadingFrequencyMinutes)))
   {
