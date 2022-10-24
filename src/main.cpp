@@ -199,9 +199,9 @@ void setMinDrynessAllowed()
     return;
   }
 
-  if(receivedMinDrynessAllowed > 410)
+  if(receivedMinDrynessAllowed > 435)
   {
-    server.send(400, "text/json", "Max dryness allowed is 410. When measuring completely dry soil the value was 435 - 438");
+    server.send(400, "text/json", "Max dryness allowed is 410. When measuring dry soil the value was 435 - 438");
     return;
   }
 
