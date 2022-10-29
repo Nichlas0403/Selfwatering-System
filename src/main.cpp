@@ -30,8 +30,8 @@ void setSoilReadingFrequencyMinutes();
 void getCurrentSoilReading();
 
 //Wifi variables and objects
-const char* _wifiName = "FTTH_WL1722";
-const char* _wifiPassword = "meawhivRyar9";
+const char* _wifiName = "wifiName";
+const char* _wifiPassword = "wifiPassword";
 ESP8266WebServer server(80);
 
 //Core system variables
