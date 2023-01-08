@@ -9,6 +9,7 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoJson.h>
+#include "twilio.hpp"
  
  //GPIO
 #define soilSensorReadGPIO A0
@@ -33,14 +34,19 @@ void setSoilReadingFrequencyMinutes();
 void getCurrentSoilReading();
 
 //Wifi variables and objects
-const char* _wifiName = "";
-const char* _wifiPassword = "9";
 ESP8266WebServer server(80);
 HTTPClient client;
+WiFiClient wifiClient;
+Twilio *twilio;
 
+const char* _wifiName = "";
+const char* _wifiPassword = "";
 const char* toSMS = "";
 const char* fromSMS = "";
-const char* twillioAuth = "";
+const char twillioFingerprint[] = "BC B0 1A 32 80 5D E6 E4 A2 29 66 2B 08 C8 E0 4C 45 29 3F D0";
+const char* account_sid = "";
+const char* auth_token = "";
+
 
 //Core system variables
 unsigned long currentTimeMillis = millis(); //Current time
@@ -76,48 +82,48 @@ void setup(void)
 void loop(void) 
 {
   
-  // server.handleClient();
+  server.handleClient();
 
-  // currentTimeMillis = millis();
+  currentTimeMillis = millis();
 
-  // if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
-  // {
-  //   currentTimeMillis = 0;
-  //   lastSoilReadingMillis = 0;
-  //   lastWateringMillis = 0;
-  // }
+  if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
+  {
+    currentTimeMillis = 0;
+    lastSoilReadingMillis = 0;
+    lastWateringMillis = 0;
+  }
 
-  // if(!wateringAutomationEnabled)
-  // {
-  //   return;
-  // }
+  if(!wateringAutomationEnabled)
+  {
+    return;
+  }
 
-  // if((currentTimeMillis - lastSoilReadingMillis < mathService.ConvertMinutesToMillis(soilReadingFrequencyMinutes)))
-  // {
-  //   return;
-  // }
+  if((currentTimeMillis - lastSoilReadingMillis < mathService.ConvertMinutesToMillis(soilReadingFrequencyMinutes)))
+  {
+    return;
+  }
   
-  // lastSoilReadingMillis = currentTimeMillis;
+  lastSoilReadingMillis = currentTimeMillis;
 
-  // averageSoilReading = 0;
+  averageSoilReading = 0;
 
-  // soilSensorService.ActivateSoilSensor(soilSensorActivateGPIO);
+  soilSensorService.ActivateSoilSensor(soilSensorActivateGPIO);
 
-  // for(int i = 0; i < numberOfSoilReadings; i++)
-  // {
-  //   averageSoilReading = averageSoilReading + soilSensorService.GetSensorReading(soilSensorReadGPIO);
-  // }
+  for(int i = 0; i < numberOfSoilReadings; i++)
+  {
+    averageSoilReading = averageSoilReading + soilSensorService.GetSensorReading(soilSensorReadGPIO);
+  }
 
-  // soilSensorService.DisableSoilSensor(soilSensorActivateGPIO);
+  soilSensorService.DisableSoilSensor(soilSensorActivateGPIO);
 
-  // averageSoilReading = averageSoilReading / numberOfSoilReadings;
+  averageSoilReading = averageSoilReading / numberOfSoilReadings;
 
-  // if(averageSoilReading <= drynessAllowed)
-  // {
-  //   return;
-  // }
+  if(averageSoilReading <= drynessAllowed)
+  {
+    return;
+  }
 
-  // RunWateringCycle();
+  RunWateringCycle();
     
 }
 
@@ -148,8 +154,23 @@ void RunWateringCycle()
 void SendSMS(String message)
 {
   // \"asdasdsad\"
-  String data = "To=" + urlEncoderDecoderService.urlencode(toSMS) + "&From=" + urlEncoderDecoderService.urlencode(fromSMS) + "&Body=" + urlEncoderDecoderService.urlencode(message);
-  client.POST(data);
+  // String data = "To=" + urlEncoderDecoderService.urlencode(toSMS) + "&From=" + urlEncoderDecoderService.urlencode(fromSMS) + "&Body=" + urlEncoderDecoderService.urlencode(message);
+  // String data = "To=";
+  // data+=toSMS;
+  // data+="&From=";
+  // data+=fromSMS;
+  // data+="&Body=";
+  // data+=message;
+  // data = urlEncoderDecoderService.urlencode(data);
+
+  String response;
+ twilio->send_message(toSMS, fromSMS, message, response);
+  
+  // Serial.println(data);
+  // client.addHeader("ContentLength", String(data.length()));
+  // client.sendRequest("POST", data);
+  // Serial.println("request sent");
+  // client.POST(data);
 }
 
 void getSystemValues() 
@@ -396,15 +417,11 @@ void connectToWiFi()
   Serial.println("HTTP server started");
 
   Serial.println("Setting up client...");
-  WifiClient wifiClient;
-  char serverUrl[] = "https://api.twilio.com/2010-04-01/Accounts/AC6524c066d0c277f2b8c708cebd9fff23/Messages.json";
 
-  
+  twilio = new Twilio(account_sid, auth_token);
 
-
-  client.begin("https://api.twilio.com/2010-04-01/Accounts/AC6524c066d0c277f2b8c708cebd9fff23/Messages.json");
-  Serial.println("client klar");
+  // wifiClient.connect(WiFi.localIP(), 80);
+  // client.begin(wifiClient, "https://api.twilio.com/2010-04-01/Accounts/AC6524c066d0c277f2b8c708cebd9fff23/Messages.json");
   // client.addHeader("Authorization", twillioAuth);
-  // client.addHeader("Content-Type", "multipart/form-data");
+  // client.addHeader("Content-Type", "x-www-form-urlencoded");
 }
- 
