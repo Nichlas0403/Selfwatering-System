@@ -2,7 +2,9 @@
 #include "WaterPumpService.h"
 #include "SoilSensorService.h"
 #include "MathService.h"
+#include "UrlEncoderDecoder.h"
 #include <ESP8266WiFi.h>
+#include <ESP8266HttpClient.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
@@ -21,6 +23,7 @@ void setMinDrynessAllowed();
 void daysBeforeNextReset();
 void healthCheck();
 void restServerRouting();
+void SendSMS(String message);
 void handleNotFound();
 void connectToWiFi();
 void requestWatering();
@@ -30,9 +33,14 @@ void setSoilReadingFrequencyMinutes();
 void getCurrentSoilReading();
 
 //Wifi variables and objects
-const char* _wifiName = "wifiName";
-const char* _wifiPassword = "wifiPassword";
+const char* _wifiName = "";
+const char* _wifiPassword = "9";
 ESP8266WebServer server(80);
+HTTPClient client;
+
+const char* toSMS = "";
+const char* fromSMS = "";
+const char* twillioAuth = "";
 
 //Core system variables
 unsigned long currentTimeMillis = millis(); //Current time
@@ -50,6 +58,7 @@ bool wateringAutomationEnabled = true;
 WaterPumpService waterPumpService;
 SoilSensorService soilSensorService;
 MathService mathService;
+UrlEncoderDecoderService urlEncoderDecoderService;
 
 
 void setup(void) 
@@ -59,53 +68,56 @@ void setup(void)
   pinMode(waterPumpGPIO, OUTPUT);
   pinMode(soilSensorReadGPIO, INPUT);
   pinMode(soilSensorActivateGPIO, OUTPUT);
+
+  SendSMS("Hello?");
+
 }
  
 void loop(void) 
 {
   
-  server.handleClient();
+  // server.handleClient();
 
-  currentTimeMillis = millis();
+  // currentTimeMillis = millis();
 
-  if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
-  {
-    currentTimeMillis = 0;
-    lastSoilReadingMillis = 0;
-    lastWateringMillis = 0;
-  }
+  // if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
+  // {
+  //   currentTimeMillis = 0;
+  //   lastSoilReadingMillis = 0;
+  //   lastWateringMillis = 0;
+  // }
 
-  if(!wateringAutomationEnabled)
-  {
-    return;
-  }
+  // if(!wateringAutomationEnabled)
+  // {
+  //   return;
+  // }
 
-  if((currentTimeMillis - lastSoilReadingMillis < mathService.ConvertMinutesToMillis(soilReadingFrequencyMinutes)))
-  {
-    return;
-  }
+  // if((currentTimeMillis - lastSoilReadingMillis < mathService.ConvertMinutesToMillis(soilReadingFrequencyMinutes)))
+  // {
+  //   return;
+  // }
   
-  lastSoilReadingMillis = currentTimeMillis;
+  // lastSoilReadingMillis = currentTimeMillis;
 
-  averageSoilReading = 0;
+  // averageSoilReading = 0;
 
-  soilSensorService.ActivateSoilSensor(soilSensorActivateGPIO);
+  // soilSensorService.ActivateSoilSensor(soilSensorActivateGPIO);
 
-  for(int i = 0; i < numberOfSoilReadings; i++)
-  {
-    averageSoilReading = averageSoilReading + soilSensorService.GetSensorReading(soilSensorReadGPIO);
-  }
+  // for(int i = 0; i < numberOfSoilReadings; i++)
+  // {
+  //   averageSoilReading = averageSoilReading + soilSensorService.GetSensorReading(soilSensorReadGPIO);
+  // }
 
-  soilSensorService.DisableSoilSensor(soilSensorActivateGPIO);
+  // soilSensorService.DisableSoilSensor(soilSensorActivateGPIO);
 
-  averageSoilReading = averageSoilReading / numberOfSoilReadings;
+  // averageSoilReading = averageSoilReading / numberOfSoilReadings;
 
-  if(averageSoilReading <= drynessAllowed)
-  {
-    return;
-  }
+  // if(averageSoilReading <= drynessAllowed)
+  // {
+  //   return;
+  // }
 
-  RunWateringCycle();
+  // RunWateringCycle();
     
 }
 
@@ -132,6 +144,13 @@ void RunWateringCycle()
 
 
 //------------ API ------------
+
+void SendSMS(String message)
+{
+  // \"asdasdsad\"
+  String data = "To=" + urlEncoderDecoderService.urlencode(toSMS) + "&From=" + urlEncoderDecoderService.urlencode(fromSMS) + "&Body=" + urlEncoderDecoderService.urlencode(message);
+  client.POST(data);
+}
 
 void getSystemValues() 
 {
@@ -375,5 +394,17 @@ void connectToWiFi()
   // Start server
   server.begin();
   Serial.println("HTTP server started");
+
+  Serial.println("Setting up client...");
+  WifiClient wifiClient;
+  char serverUrl[] = "https://api.twilio.com/2010-04-01/Accounts/AC6524c066d0c277f2b8c708cebd9fff23/Messages.json";
+
+  
+
+
+  client.begin("https://api.twilio.com/2010-04-01/Accounts/AC6524c066d0c277f2b8c708cebd9fff23/Messages.json");
+  Serial.println("client klar");
+  // client.addHeader("Authorization", twillioAuth);
+  // client.addHeader("Content-Type", "multipart/form-data");
 }
  
