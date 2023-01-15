@@ -9,7 +9,6 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoJson.h>
-#include "twilio.hpp"
  
  //GPIO
 #define soilSensorReadGPIO A0
@@ -36,16 +35,19 @@ void getCurrentSoilReading();
 //Wifi variables and objects
 ESP8266WebServer server(80);
 HTTPClient client;
-WiFiClient wifiClient;
-Twilio *twilio;
+WiFiClientSecure wifiClientSecure;
 
 const char* _wifiName = "";
 const char* _wifiPassword = "";
-const char* toSMS = "";
-const char* fromSMS = "";
-const char twillioFingerprint[] = "BC B0 1A 32 80 5D E6 E4 A2 29 66 2B 08 C8 E0 4C 45 29 3F D0";
-const char* account_sid = "";
-const char* auth_token = "";
+const String toSMS = "";
+const String fromSMS = "";
+const String AccountIdSMS = "";
+const String token = "";
+const char fingerprint[] = "";
+const String host = "";
+const int   httpsPort = 0;
+const String ResetSystemMessage = "Selfwatering system: Reset Required";
+const String RefillWaterMessage = "Selfwatering system: Refill water";
 
 
 //Core system variables
@@ -74,9 +76,6 @@ void setup(void)
   pinMode(waterPumpGPIO, OUTPUT);
   pinMode(soilSensorReadGPIO, INPUT);
   pinMode(soilSensorActivateGPIO, OUTPUT);
-
-  SendSMS("Hello?");
-
 }
  
 void loop(void) 
@@ -88,9 +87,7 @@ void loop(void)
 
   if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
   {
-    currentTimeMillis = 0;
-    lastSoilReadingMillis = 0;
-    lastWateringMillis = 0;
+    SendSMS("Selfwatering system: Reset Required");
   }
 
   if(!wateringAutomationEnabled)
@@ -153,24 +150,9 @@ void RunWateringCycle()
 
 void SendSMS(String message)
 {
-  // \"asdasdsad\"
-  // String data = "To=" + urlEncoderDecoderService.urlencode(toSMS) + "&From=" + urlEncoderDecoderService.urlencode(fromSMS) + "&Body=" + urlEncoderDecoderService.urlencode(message);
-  // String data = "To=";
-  // data+=toSMS;
-  // data+="&From=";
-  // data+=fromSMS;
-  // data+="&Body=";
-  // data+=message;
-  // data = urlEncoderDecoderService.urlencode(data);
+  String data = "To=" + urlEncoderDecoderService.urlencode(toSMS) + "&From=" + urlEncoderDecoderService.urlencode(fromSMS) + "&Body=" + urlEncoderDecoderService.urlencode(message);
 
-  String response;
- twilio->send_message(toSMS, fromSMS, message, response);
-  
-  // Serial.println(data);
-  // client.addHeader("ContentLength", String(data.length()));
-  // client.sendRequest("POST", data);
-  // Serial.println("request sent");
-  // client.POST(data);
+  client.POST(data);
 }
 
 void getSystemValues() 
@@ -414,14 +396,15 @@ void connectToWiFi()
   server.onNotFound(handleNotFound);
   // Start server
   server.begin();
-  Serial.println("HTTP server started");
 
+  Serial.println("HTTP server started");
   Serial.println("Setting up client...");
 
-  twilio = new Twilio(account_sid, auth_token);
-
-  // wifiClient.connect(WiFi.localIP(), 80);
-  // client.begin(wifiClient, "https://api.twilio.com/2010-04-01/Accounts/AC6524c066d0c277f2b8c708cebd9fff23/Messages.json");
-  // client.addHeader("Authorization", twillioAuth);
-  // client.addHeader("Content-Type", "x-www-form-urlencoded");
+  wifiClientSecure.setFingerprint(fingerprint);
+  wifiClientSecure.connect(host, httpsPort);
+        
+  client.begin(wifiClientSecure, "https://" + host + "/2010-04-01/Accounts/" + AccountIdSMS + "/Messages.json");
+  client.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  client.addHeader("Authorization", token);
+  
 }
