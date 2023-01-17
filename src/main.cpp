@@ -31,6 +31,7 @@ void RunWateringCycle();
 void setSoilReadingFrequencyMinutes();
 void setSoilReadingFrequencyMinutes();
 void getCurrentSoilReading();
+void setPercentageIncrease();
 
 //Wifi variables and objects
 ESP8266WebServer server(80);
@@ -39,29 +40,29 @@ WiFiClientSecure wifiClientSecure;
 
 const char* _wifiName = "";
 const char* _wifiPassword = "";
-const String toSMS = "+";
-const String fromSMS = "+";
+const String toSMS = "";
+const String fromSMS = "";
 const String AccountIdSMS = "";
-const String token = " ==";
-const char fingerprint[] = "D";
+const String token = "";
+const char fingerprint[] = "";
 const String host = "";
-0const String ResetSystemMessage = "Selfwatering system: Reset Required";
+const int   httpsPort = ;
+const String ResetSystemMessage = "Selfwatering system: Reset Required";
 const String RefillWaterMessage = "Selfwatering system: Refill water";
 
 
 //Core system variables
 unsigned long currentTimeMillis = millis(); //Current time
-int drynessAllowed = 400; //Threshold for when the watering should happen
-int wateringTimeSeconds = 5; //amount of the water is sent from the pump to the plant
+int drynessAllowed = 350; //Threshold for when the watering should happen
+int wateringTimeSeconds = 10; //amount of the water is sent from the pump to the plant
 int lastWateringMillis = 0; //the amount of time passed since last watering
-byte soilReadingFrequencyMinutes = 60; //How often a soilreading should happen
+byte soilReadingFrequencyMinutes = 45; //How often a soilreading should happen
 unsigned long lastSoilReadingMillis = 0; //holds last millis() a reading was done
 int numberOfSoilReadings = 1000; //number of soilreading done - avg is calculated
 double averageSoilReading = 0; //calculated soilreading
 byte daysLeftBeforeReset = 1; //Reset system when currentTime is 1 day from reaching max value of unsigned long
 bool wateringAutomationEnabled = true;
-double averageSoilReadingBeforeLastWatering;
-bool averageSoilReadingBeforeLastWateringSat = false;
+double percentageIncrease = 1.07; //percentage dryness is allowed to go above, before an SMS will be send
 bool notified = false;
 
 //Custom classes
@@ -74,81 +75,66 @@ UrlEncoderDecoderService urlEncoderDecoderService;
 void setup(void) 
 {
   Serial.begin(9600);
-  // connectToWiFi();
+  connectToWiFi();
   pinMode(waterPumpGPIO, OUTPUT);
   pinMode(soilSensorReadGPIO, INPUT);
   pinMode(soilSensorActivateGPIO, OUTPUT);
-  averageSoilReadingBeforeLastWatering = 0;
 }
  
 void loop(void) 
 {
   
-  // server.handleClient();
+  server.handleClient();
 
-  // currentTimeMillis = millis();
+  currentTimeMillis = millis();
 
-  // if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
-  // {
-  //   SendSMS("Selfwatering system: Reset Required");
-  // }
+  if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
+  {
+    SendSMS("Selfwatering system: Reset Required");
+  }
 
-  // if(!wateringAutomationEnabled)
-  // {
-  //   return;
-  // }
+  if(!wateringAutomationEnabled)
+  {
+    return;
+  }
 
-  // if((currentTimeMillis - lastSoilReadingMillis < mathService.ConvertMinutesToMillis(soilReadingFrequencyMinutes)))
-  // {
-  //   return;
-  // }
+  if((currentTimeMillis - lastSoilReadingMillis < mathService.ConvertMinutesToMillis(soilReadingFrequencyMinutes)))
+  {
+    return;
+  }
   
-  // lastSoilReadingMillis = currentTimeMillis;
+  lastSoilReadingMillis = currentTimeMillis;
 
-  // averageSoilReading = 0;
+  averageSoilReading = 0;
 
-  // soilSensorService.ActivateSoilSensor(soilSensorActivateGPIO);
+  soilSensorService.ActivateSoilSensor(soilSensorActivateGPIO);
 
-  // for(int i = 0; i < numberOfSoilReadings; i++)
-  // {
-  //   averageSoilReading = averageSoilReading + soilSensorService.GetSensorReading(soilSensorReadGPIO);
-  // }
-
-  // soilSensorService.DisableSoilSensor(soilSensorActivateGPIO);
-
-  // averageSoilReading = averageSoilReading / numberOfSoilReadings;
-
-  // if(averageSoilReading <= drynessAllowed)
-  // {
-  //   return;
-  // }
-
-  Serial.println("");
-  Serial.println("");
-  Serial.println("");
-  Serial.println("");
-  Serial.println("");
-  Serial.println("");
-
-  averageSoilReading = 2;
-  averageSoilReadingBeforeLastWatering = 1;
-  if(!averageSoilReadingBeforeLastWateringSat)
+  for(int i = 0; i < numberOfSoilReadings; i++)
   {
-    averageSoilReadingBeforeLastWateringSat = true;
-    averageSoilReadingBeforeLastWatering = averageSoilReading;
+    averageSoilReading = averageSoilReading + soilSensorService.GetSensorReading(soilSensorReadGPIO);
   }
-  else if((averageSoilReading > averageSoilReadingBeforeLastWatering) && (!notified))
+
+  soilSensorService.DisableSoilSensor(soilSensorActivateGPIO);
+
+  averageSoilReading = averageSoilReading / numberOfSoilReadings;
+
+  if(averageSoilReading <= drynessAllowed)
   {
-    // SendSMS(RefillWaterMessage);
+    return;
+  }
+
+
+  if((averageSoilReading > (drynessAllowed * percentageIncrease)) && (!notified))
+  {
+    SendSMS(RefillWaterMessage);
     notified = true;
-    averageSoilReadingBeforeLastWatering = averageSoilReading;
   }
-  else if(averageSoilReading < averageSoilReadingBeforeLastWatering)
+  else
   {
     notified = false;
   }
 
-  // RunWateringCycle();
+  RunWateringCycle();
     
 }
 
@@ -178,9 +164,26 @@ void RunWateringCycle()
 
 void SendSMS(String message)
 {
+  Serial.println("Setting up client...");
+  wifiClientSecure.setFingerprint(fingerprint);
+  if(wifiClientSecure.connect(host, httpsPort))
+  {
+    Serial.println("Connected to " + host);
+  }
+  else
+  {
+    Serial.println("Could not connect to " + host);
+  }
+        
+  client.begin(wifiClientSecure, "https://" + host + "/2010-04-01/Accounts/" + AccountIdSMS + "/Messages.json");
+  client.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  client.addHeader("Authorization", token);
   String data = "To=" + urlEncoderDecoderService.urlencode(toSMS) + "&From=" + urlEncoderDecoderService.urlencode(fromSMS) + "&Body=" + urlEncoderDecoderService.urlencode(message);
 
   client.POST(data);
+  client.end();
+  Serial.println("Connection to " + host + " has ended.");
+
 }
 
 void getSystemValues() 
@@ -193,8 +196,32 @@ void getSystemValues()
     doc["MinutesAgoSinceLastSoilReading"] = String(mathService.ConvertMillisToMinutes(currentTimeMillis - lastSoilReadingMillis));
     doc["HoursAgoLastWateringCycleWasDone"] = String(mathService.ConvertMillisToHours(currentTimeMillis - lastWateringMillis));
     doc["WateringAutomationEnabled"] = wateringAutomationEnabled;
+    doc["PercentageAboveDrynessAllowedBeforeSMS"] = percentageIncrease;
 
     server.send(200, "text/json", doc.as<String>());
+}
+
+void setPercentageIncrease()
+{
+  String arg = "percentageIncrease";
+
+  if(!server.hasArg(arg))
+  {
+    server.send(400, "text/json", "Missing argument: " + arg);
+    return;
+  }
+
+  double receivedPercentageIncrase = server.arg(arg).toDouble();
+
+  if(receivedPercentageIncrase < 1.00 && receivedPercentageIncrase > 1.99)
+  {
+    server.send(400, "text/json", "Value must be between 1.00 and 1.99");
+    return;
+  }
+
+  percentageIncrease = receivedPercentageIncrase;
+
+  server.send(200, "text/json", "PercentageIncrease changed to " + String(percentageIncrease));
 }
 
 void setWateringTimeSeconds()
@@ -373,6 +400,7 @@ void restServerRouting()
     server.on(F("/set-minimum-dryness-allowed"), HTTP_PUT, setMinDrynessAllowed);
     server.on(F("/set-soil-reading-frequency"), HTTP_PUT, setSoilReadingFrequencyMinutes);
     server.on(F("/toggle-watering-automation"), HTTP_PUT, toggleWateringAutomationEnabled);
+    server.on(F("/percentage-increase"), HTTP_PUT, setPercentageIncrease);
 }
 
 // Manage not found URL
@@ -426,13 +454,4 @@ void connectToWiFi()
   server.begin();
 
   Serial.println("HTTP server started");
-  Serial.println("Setting up client...");
-
-  wifiClientSecure.setFingerprint(fingerprint);
-  wifiClientSecure.connect(host, httpsPort);
-        
-  client.begin(wifiClientSecure, "https://" + host + "/2010-04-01/Accounts/" + AccountIdSMS + "/Messages.json");
-  client.addHeader("Content-Type", "application/x-www-form-urlencoded");
-  client.addHeader("Authorization", token);
-  
 }
