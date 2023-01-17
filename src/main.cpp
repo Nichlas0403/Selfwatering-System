@@ -39,12 +39,12 @@ WiFiClientSecure wifiClientSecure;
 
 const char* _wifiName = "";
 const char* _wifiPassword = "";
-const String toSMS = "";
-const String fromSMS = "";
+const String toSMS = "+";
+const String fromSMS = "+";
 const String AccountIdSMS = "";
-const String token = "";
-const char fingerprint[] = "";
-const String host = "";
+const String token = "==";
+const char fingerprint[] = "B7D";
+const char* host = "";
 const int   httpsPort = 0;
 const String ResetSystemMessage = "Selfwatering system: Reset Required";
 const String RefillWaterMessage = "Selfwatering system: Refill water";
@@ -61,6 +61,9 @@ int numberOfSoilReadings = 1000; //number of soilreading done - avg is calculate
 double averageSoilReading = 0; //calculated soilreading
 byte daysLeftBeforeReset = 1; //Reset system when currentTime is 1 day from reaching max value of unsigned long
 bool wateringAutomationEnabled = true;
+double averageSoilReadingBeforeLastWatering;
+bool averageSoilReadingBeforeLastWateringSat = false;
+bool notified = false;
 
 //Custom classes
 WaterPumpService waterPumpService;
@@ -72,55 +75,78 @@ UrlEncoderDecoderService urlEncoderDecoderService;
 void setup(void) 
 {
   Serial.begin(9600);
-  connectToWiFi();
+  // connectToWiFi();
   pinMode(waterPumpGPIO, OUTPUT);
   pinMode(soilSensorReadGPIO, INPUT);
   pinMode(soilSensorActivateGPIO, OUTPUT);
+  averageSoilReadingBeforeLastWatering = 0;
 }
  
 void loop(void) 
 {
   
-  server.handleClient();
+  // server.handleClient();
 
-  currentTimeMillis = millis();
+  // currentTimeMillis = millis();
 
-  if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
-  {
-    SendSMS("Selfwatering system: Reset Required");
-  }
+  // if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
+  // {
+  //   SendSMS("Selfwatering system: Reset Required");
+  // }
 
-  if(!wateringAutomationEnabled)
-  {
-    return;
-  }
+  // if(!wateringAutomationEnabled)
+  // {
+  //   return;
+  // }
 
-  if((currentTimeMillis - lastSoilReadingMillis < mathService.ConvertMinutesToMillis(soilReadingFrequencyMinutes)))
-  {
-    return;
-  }
+  // if((currentTimeMillis - lastSoilReadingMillis < mathService.ConvertMinutesToMillis(soilReadingFrequencyMinutes)))
+  // {
+  //   return;
+  // }
   
-  lastSoilReadingMillis = currentTimeMillis;
+  // lastSoilReadingMillis = currentTimeMillis;
 
-  averageSoilReading = 0;
+  // averageSoilReading = 0;
 
-  soilSensorService.ActivateSoilSensor(soilSensorActivateGPIO);
+  // soilSensorService.ActivateSoilSensor(soilSensorActivateGPIO);
 
-  for(int i = 0; i < numberOfSoilReadings; i++)
+  // for(int i = 0; i < numberOfSoilReadings; i++)
+  // {
+  //   averageSoilReading = averageSoilReading + soilSensorService.GetSensorReading(soilSensorReadGPIO);
+  // }
+
+  // soilSensorService.DisableSoilSensor(soilSensorActivateGPIO);
+
+  // averageSoilReading = averageSoilReading / numberOfSoilReadings;
+
+  // if(averageSoilReading <= drynessAllowed)
+  // {
+  //   return;
+  // }
+
+  averageSoilReading = 1;
+
+  if(averageSoilReadingBeforeLastWateringSat == false)
   {
-    averageSoilReading = averageSoilReading + soilSensorService.GetSensorReading(soilSensorReadGPIO);
+    averageSoilReadingBeforeLastWateringSat = true;
+    Serial.println("1");
+    averageSoilReadingBeforeLastWatering = averageSoilReading;
+  }
+  else if((averageSoilReading > averageSoilReadingBeforeLastWatering) && (!notified))
+  {
+    Serial.println("2");
+    // SendSMS(RefillWaterMessage);
+    notified = true;
+    averageSoilReadingBeforeLastWatering = averageSoilReading;
+  }
+  else if(averageSoilReading < averageSoilReadingBeforeLastWatering)
+  {
+    notified = false;
+    Serial.println("3");
   }
 
-  soilSensorService.DisableSoilSensor(soilSensorActivateGPIO);
-
-  averageSoilReading = averageSoilReading / numberOfSoilReadings;
-
-  if(averageSoilReading <= drynessAllowed)
-  {
-    return;
-  }
-
-  RunWateringCycle();
+  // RunWateringCycle();
+  delay(3000);
     
 }
 
