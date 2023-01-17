@@ -42,11 +42,10 @@ const char* _wifiPassword = "";
 const String toSMS = "+";
 const String fromSMS = "+";
 const String AccountIdSMS = "";
-const String token = "==";
-const char fingerprint[] = "B7D";
-const char* host = "";
-const int   httpsPort = 0;
-const String ResetSystemMessage = "Selfwatering system: Reset Required";
+const String token = " ==";
+const char fingerprint[] = "D";
+const String host = "";
+0const String ResetSystemMessage = "Selfwatering system: Reset Required";
 const String RefillWaterMessage = "Selfwatering system: Refill water";
 
 
@@ -124,17 +123,22 @@ void loop(void)
   //   return;
   // }
 
-  averageSoilReading = 1;
+  Serial.println("");
+  Serial.println("");
+  Serial.println("");
+  Serial.println("");
+  Serial.println("");
+  Serial.println("");
 
-  if(averageSoilReadingBeforeLastWateringSat == false)
+  averageSoilReading = 2;
+  averageSoilReadingBeforeLastWatering = 1;
+  if(!averageSoilReadingBeforeLastWateringSat)
   {
     averageSoilReadingBeforeLastWateringSat = true;
-    Serial.println("1");
     averageSoilReadingBeforeLastWatering = averageSoilReading;
   }
   else if((averageSoilReading > averageSoilReadingBeforeLastWatering) && (!notified))
   {
-    Serial.println("2");
     // SendSMS(RefillWaterMessage);
     notified = true;
     averageSoilReadingBeforeLastWatering = averageSoilReading;
@@ -142,11 +146,9 @@ void loop(void)
   else if(averageSoilReading < averageSoilReadingBeforeLastWatering)
   {
     notified = false;
-    Serial.println("3");
   }
 
   // RunWateringCycle();
-  delay(3000);
     
 }
 
