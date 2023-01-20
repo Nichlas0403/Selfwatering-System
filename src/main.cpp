@@ -54,7 +54,7 @@ const String RefillWaterMessage = "Selfwatering system: Refill water";
 //Core system variables
 unsigned long currentTimeMillis = millis(); //Current time
 int drynessAllowed = 350; //Threshold for when the watering should happen
-int wateringTimeSeconds = 10; //amount of the water is sent from the pump to the plant
+int wateringTimeSeconds = 3; //amount of the water is sent from the pump to the plant
 int lastWateringMillis = 0; //the amount of time passed since last watering
 byte soilReadingFrequencyMinutes = 45; //How often a soilreading should happen
 unsigned long lastSoilReadingMillis = 0; //holds last millis() a reading was done
@@ -123,13 +123,14 @@ void loop(void)
     return;
   }
 
+  
 
   if((averageSoilReading > (drynessAllowed * percentageIncrease)) && (!notified))
   {
     SendSMS(RefillWaterMessage);
     notified = true;
   }
-  else
+  else if(averageSoilReading > (drynessAllowed * percentageIncrease))
   {
     notified = false;
   }
