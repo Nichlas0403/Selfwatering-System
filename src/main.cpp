@@ -36,17 +36,9 @@ void setPercentageIncrease();
 //Wifi variables and objects
 ESP8266WebServer server(80);
 HTTPClient client;
-WiFiClientSecure wifiClientSecure;
+WiFiClient wifiClient;
 
-const char* _wifiName = "";
-const char* _wifiPassword = "";
-const String toSMS = "";
-const String fromSMS = "";
-const String AccountIdSMS = "";
-const String token = "";
-const char fingerprint[] = "";
-const String host = "";
-const int   httpsPort = ;
+const String SendSMSUrl = "/send-SMS";
 const String ResetSystemMessage = "Selfwatering system: Reset Required";
 const String RefillWaterMessage = "Selfwatering system: Refill water";
 
@@ -90,7 +82,7 @@ void loop(void)
 
   if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
   {
-    SendSMS("Selfwatering system: Reset Required");
+    SendSMS(ResetSystemMessage);
   }
 
   if(!wateringAutomationEnabled)
@@ -165,25 +157,10 @@ void RunWateringCycle()
 
 void SendSMS(String message)
 {
-  Serial.println("Setting up client...");
-  wifiClientSecure.setFingerprint(fingerprint);
-  if(wifiClientSecure.connect(host, httpsPort))
-  {
-    Serial.println("Connected to " + host);
-  }
-  else
-  {
-    Serial.println("Could not connect to " + host);
-  }
-        
-  client.begin(wifiClientSecure, "https://" + host + "/2010-04-01/Accounts/" + AccountIdSMS + "/Messages.json");
-  client.addHeader("Content-Type", "application/x-www-form-urlencoded");
-  client.addHeader("Authorization", token);
-  String data = "To=" + urlEncoderDecoderService.urlencode(toSMS) + "&From=" + urlEncoderDecoderService.urlencode(fromSMS) + "&Body=" + urlEncoderDecoderService.urlencode(message);
-
-  client.POST(data);
+  client.begin(wifiClient, CSCSIp + SendSMSUrl + "?message=" + urlEncoderDecoderService.urlencode(message));
+  client.sendRequest("POST");
   client.end();
-  Serial.println("Connection to " + host + " has ended.");
+  Serial.println("Connection to " + CSCSIp + " has ended.");
 
 }
 
