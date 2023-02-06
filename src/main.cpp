@@ -126,6 +126,18 @@ void loop(void)
   {
     notified = false;
   }
+ 
+ 
+  //if((averageSoilReading > (drynessAllowed * percentageIncrease)) && !notified)
+  //{
+      //save current averageSoilReading to variable LastSoilReadingAboveLimit
+   // SendSMS(RefillWaterMessage);
+    //notified = true;
+  //}
+  //else if(notified && (averageSoilReading <= LastSoilReadingAboveLimit))
+  //{
+   // notified = false;
+  //}
 
   RunWateringCycle();
     
