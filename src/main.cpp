@@ -117,7 +117,7 @@ void loop(void)
 
   
 
-  if(averageSoilReading > (drynessAllowed * percentageIncrease))
+  if((averageSoilReading > (drynessAllowed * percentageIncrease)) && !notified)
   {
     SendSMS(RefillWaterMessage);
     notified = true;
