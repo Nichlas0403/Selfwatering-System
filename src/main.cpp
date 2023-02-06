@@ -56,6 +56,7 @@ byte daysLeftBeforeReset = 1; //Reset system when currentTime is 1 day from reac
 bool wateringAutomationEnabled = true;
 double percentageIncrease = 1.04; //percentage dryness is allowed to go above, before an SMS will be send
 bool notified = false;
+double soilReadingAfterSMS;
 
 //Custom classes
 WaterPumpService waterPumpService;
@@ -116,28 +117,17 @@ void loop(void)
   }
 
   
-
   if((averageSoilReading > (drynessAllowed * percentageIncrease)) && !notified)
   {
+    soilReadingAfterSMS = averageSoilReading;
     SendSMS(RefillWaterMessage);
     notified = true;
   }
-  else if(averageSoilReading > (drynessAllowed * percentageIncrease))
+  else if(notified && (averageSoilReading <= soilReadingAfterSMS))
   {
     notified = false;
+    soilReadingAfterSMS = 0;
   }
- 
- 
-  //if((averageSoilReading > (drynessAllowed * percentageIncrease)) && !notified)
-  //{
-      //save current averageSoilReading to variable LastSoilReadingAboveLimit
-   // SendSMS(RefillWaterMessage);
-    //notified = true;
-  //}
-  //else if(notified && (averageSoilReading <= LastSoilReadingAboveLimit))
-  //{
-   // notified = false;
-  //}
 
   RunWateringCycle();
     
