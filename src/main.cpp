@@ -54,7 +54,7 @@ int numberOfSoilReadings = 1000; //number of soilreading done - avg is calculate
 double averageSoilReading = 0; //calculated soilreading
 byte daysLeftBeforeReset = 1; //Reset system when currentTime is 1 day from reaching max value of unsigned long
 bool wateringAutomationEnabled = true;
-double percentageIncrease = 1.07; //percentage dryness is allowed to go above, before an SMS will be send
+double percentageIncrease = 1.04; //percentage dryness is allowed to go above, before an SMS will be send
 bool notified = false;
 
 //Custom classes
@@ -117,7 +117,7 @@ void loop(void)
 
   
 
-  if((averageSoilReading > (drynessAllowed * percentageIncrease)) && (!notified))
+  if(averageSoilReading > (drynessAllowed * percentageIncrease))
   {
     SendSMS(RefillWaterMessage);
     notified = true;
