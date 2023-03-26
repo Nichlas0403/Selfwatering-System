@@ -39,7 +39,6 @@ HTTPClient client;
 WiFiClient wifiClient;
 
 const String SendSMSUrl = "/send-SMS";
-const String ResetSystemMessage = "Selfwatering system: Reset Required";
 const String RefillWaterMessage = "Selfwatering system: Refill water";
 
 
@@ -83,7 +82,7 @@ void loop(void)
 
   if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
   {
-    SendSMS(ResetSystemMessage);
+    ESP.restart();
   }
 
   if(!wateringAutomationEnabled)
