@@ -82,7 +82,7 @@ void loop(void)
 
   if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
   {
-    ESP.restart();
+    SendSMS(ResetSystemMessage);
   }
 
   if(!wateringAutomationEnabled)
