@@ -38,6 +38,10 @@ ESP8266WebServer server(80);
 HTTPClient client;
 WiFiClient wifiClient;
 
+const String _wifiName = WifiName;
+const String _wifiPassword = WifiPassword;
+
+const String CSCSIp = CSCSIp;
 const String SendSMSUrl = "/send-SMS";
 const String RefillWaterMessage = "Selfwatering system: Refill water";
 
@@ -82,7 +86,7 @@ void loop(void)
 
   if(mathService.ConvertMillisToDays(ULONG_MAX - currentTimeMillis) <= daysLeftBeforeReset)
   {
-    SendSMS(ResetSystemMessage);
+    ESP.restart();
   }
 
   if(!wateringAutomationEnabled)
